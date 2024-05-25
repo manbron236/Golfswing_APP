@@ -19,6 +19,11 @@ swing_ended = True  # 스윙 종료 여부를 추적하는 변수
 initial_head_position = None
 head_movement_detected = False
 
+# 스윙 카운트를 위한 전역 변수 초기화
+total_swings = 0
+head_fixed_count = 0
+head_movement_count = 0
+
 interpreter = tf.lite.Interpreter(model_path='movenet_lighting_tflite_float16.tflite')
 interpreter.allocate_tensors()
 
@@ -41,7 +46,12 @@ def draw_connections(frame, keypoints, edges, confidence_threshold):
         y2, x2, c2 = shaped[p2]
 
         if (c1 > confidence_threshold) & (c2 > confidence_threshold):
-            cv2.line(frame, (int(x1), int(y1)), (int(x2), int(y2)), (0, 0, 255), 2)
+            try:
+                cv2.line(frame, (int(x1), int(y1)), (int(x2), int(y2)), (0, 0, 255), 2)
+            except ValueError:
+                # y1, x1, y2, x2가 유효한 숫자가 아닌 경우 무시하고 다음으로 진행
+                continue
+
 
 # 어깨 중간과 엉덩이 중간에 세로선 그리기 추가
 def draw_midline(frame, keypoints, confidence_threshold):
@@ -55,7 +65,6 @@ def draw_midline(frame, keypoints, confidence_threshold):
             shaped[11][2] > confidence_threshold and shaped[12][2] > confidence_threshold):
         cv2.line(frame, (int(shoulder_mid[1]), int(shoulder_mid[0])), (int(hip_mid[1]), int(hip_mid[0])), (255, 0, 0), 2)
 
-
 def draw_face_vertical_line(frame, keypoints, confidence_threshold):
     y, x, c = frame.shape
     shaped = np.squeeze(np.multiply(keypoints, [y, x, 1]))
@@ -67,7 +76,6 @@ def draw_face_vertical_line(frame, keypoints, confidence_threshold):
     if (shaped[0][2] > confidence_threshold and shaped[1][2] > confidence_threshold):
         # 이마에서 턱까지의 선 그리기
         cv2.line(frame, (int(head_top[1]), int(head_top[0])), (int(neck[1]), int(neck[0])), (0, 0, 255), 2)
-
 
 def is_address_pose(keypoints_with_scores, confidence_threshold=0.4):
     keypoints = np.squeeze(keypoints_with_scores)
@@ -209,12 +217,15 @@ last_swing_end_time = 0  # 마지막 스윙 종료 시간
 address_pose_detection_delay = 5  # 어드레스 자세 탐지를 지연시키는 시간(초)
 
 def check_swing_and_head_movement(current_left_shoulder_x):
-    global swing_ended, head_movement_detected, last_swing_end_time
+    global swing_ended, head_movement_detected, last_swing_end_time, total_swings, head_fixed_count, head_movement_count
     if check_swing_end(current_left_shoulder_x):
+        total_swings += 1
         if head_movement_detected:
             print("스윙 종료됨, 머리 움직임")
+            head_movement_count += 1
         else:
             print("스윙 종료됨, 머리 고정 성공")
+            head_fixed_count += 1
         swing_ended = True
         head_movement_detected = False  # 머리 움직임 감지 변수 초기화
         last_swing_end_time = time.time()  # 스윙 종료 시간 기록
@@ -268,17 +279,30 @@ class App:
         main_frame = ttk.Frame(window)
         main_frame.grid(row=0, column=0, padx=10, pady=10)
 
+        # 스타일 설정
+        style = ttk.Style()
+        style.configure('My.TFrame', background='white')
+        style.configure('My.TLabel', background='white', foreground='black')
+
         # 타이틀
-        self.title = tk.Label(main_frame, text="Handy Caddy", font=("Helvetica", 16))
+        self.title = ttk.Label(main_frame, text="Handy Caddy", font=("Helvetica", 16))
         self.title.grid(row=0, column=0, columnspan=3)
 
-        # 정보 라벨
-        self.label1 = tk.Label(main_frame, text="총 스윙 수:", font=("Helvetica", 12))
-        self.label1.grid(row=1, column=0)
-        self.label2 = tk.Label(main_frame, text="머리 고정 성공:", font=("Helvetica", 12))
-        self.label2.grid(row=1, column=1)
-        self.label3 = tk.Label(main_frame, text="머리 고정 실패:", font=("Helvetica", 12))
-        self.label3.grid(row=1, column=2)
+        # 정보 라벨과 숫자를 각각 별도로 라벨로 표시
+        self.total_swings_label = ttk.Label(main_frame, text="총 스윙 수", font=("Arial", 16), background='white', foreground='black')
+        self.total_swings_label.grid(row=1, column=0, pady=(5, 0))
+        self.total_swings_count = ttk.Label(main_frame, text="0", font=("Arial", 20), background='white', foreground='black')
+        self.total_swings_count.grid(row=2, column=0)
+
+        self.head_fixed_label = ttk.Label(main_frame, text="머리 고정 성공", font=("Arial", 16), background='white', foreground='black')
+        self.head_fixed_label.grid(row=1, column=1, pady=(5, 0))
+        self.head_fixed_count_label = ttk.Label(main_frame, text="0", font=("Arial", 20), background='white', foreground='black')
+        self.head_fixed_count_label.grid(row=2, column=1)
+
+        self.head_movement_label = ttk.Label(main_frame, text="머리 고정 실패", font=("Arial", 16), background='white', foreground='black')
+        self.head_movement_label.grid(row=1, column=2, pady=(5, 0))
+        self.head_movement_count_label = ttk.Label(main_frame, text="0", font=("Arial", 20), background='white', foreground='black')
+        self.head_movement_count_label.grid(row=2, column=2)
 
         # 비디오 소스 열기
         self.vid = cv2.VideoCapture(video_source)
@@ -287,11 +311,11 @@ class App:
 
         # 위의 비디오 소스 크기에 맞는 캔버스 생성
         self.canvas = tk.Canvas(main_frame, width=self.vid.get(cv2.CAP_PROP_FRAME_WIDTH), height=self.vid.get(cv2.CAP_PROP_FRAME_HEIGHT))
-        self.canvas.grid(row=2, column=0, columnspan=3)
+        self.canvas.grid(row=3, column=0, columnspan=3)
 
         # 버튼을 위한 프레임 생성
-        button_frame = ttk.Frame(main_frame)
-        button_frame.grid(row=3, column=0, columnspan=3, sticky='w')
+        button_frame = ttk.Frame(main_frame, style='My.TFrame')
+        button_frame.grid(row=4, column=0, columnspan=3, sticky='w')
 
         # 버튼들 생성 및 배치
         self.btn_start = ttk.Button(button_frame, text="Start", command=self.start_video)
@@ -312,11 +336,19 @@ class App:
         self.vid.release()
 
     def reset_counters(self):
-        # 스윙 카운터를 초기화하는 함수
-        pass
+        global total_swings, head_fixed_count, head_movement_count
+        total_swings = 0
+        head_fixed_count = 0
+        head_movement_count = 0
+        self.update_labels()
+
+    def update_labels(self):
+        self.total_swings_count.config(text=f"{total_swings}")
+        self.head_fixed_count_label.config(text=f"{head_fixed_count}")
+        self.head_movement_count_label.config(text=f"{head_movement_count}")
 
     def update(self):
-        global swing_ended, last_swing_end_time, address_pose_detection_delay, initial_left_shoulder_x, head_movement_detected
+        global swing_ended, last_swing_end_time, address_pose_detection_delay, initial_left_shoulder_x, head_movement_detected, total_swings, head_fixed_count, head_movement_count
         ret, frame = self.vid.read()
         if ret:
             # 모델에 프레임 전달 및 추론
@@ -351,6 +383,9 @@ class App:
                 analyze_head_movement_during_swing(keypoints)
                 check_swing_and_head_movement(current_left_shoulder_x)
 
+                # 카운터 업데이트
+                self.update_labels()
+
             # OpenCV 이미지 -> PIL 포맷으로 변환 -> Tkinter에 표시
             self.photo = ImageTk.PhotoImage(image=Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)))
             self.canvas.create_image(0, 0, image=self.photo, anchor=tk.NW)
@@ -361,6 +396,7 @@ class App:
         if self.vid.isOpened():
             self.vid.release()
 
-
-# Create a window and pass it to the App object
-App(tk.Tk(), "Handy Caddy")
+# Tkinter 윈도우 생성 및 애플리케이션 실행
+root = tk.Tk()
+app = App(root, "Handy Caddy")
+root.mainloop()
