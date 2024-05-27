@@ -291,17 +291,17 @@ class App:
         # 정보 라벨과 숫자를 각각 별도로 라벨로 표시
         self.total_swings_label = ttk.Label(main_frame, text="총 스윙 수", font=("Arial", 16), background='white', foreground='black')
         self.total_swings_label.grid(row=1, column=0, pady=(5, 0))
-        self.total_swings_count = ttk.Label(main_frame, text="0", font=("Arial", 20), background='white', foreground='black')
+        self.total_swings_count = tk.Label(main_frame, text="0", font=("Arial", 20), background='white', foreground='black', width=10, height=2, anchor='center')
         self.total_swings_count.grid(row=2, column=0)
 
         self.head_fixed_label = ttk.Label(main_frame, text="머리 고정 성공", font=("Arial", 16), background='white', foreground='black')
         self.head_fixed_label.grid(row=1, column=1, pady=(5, 0))
-        self.head_fixed_count_label = ttk.Label(main_frame, text="0", font=("Arial", 20), background='white', foreground='black')
+        self.head_fixed_count_label = tk.Label(main_frame, text="0", font=("Arial", 20), background='white', foreground='black', width=10, height=2, anchor='center')
         self.head_fixed_count_label.grid(row=2, column=1)
 
         self.head_movement_label = ttk.Label(main_frame, text="머리 고정 실패", font=("Arial", 16), background='white', foreground='black')
         self.head_movement_label.grid(row=1, column=2, pady=(5, 0))
-        self.head_movement_count_label = ttk.Label(main_frame, text="0", font=("Arial", 20), background='white', foreground='black')
+        self.head_movement_count_label = tk.Label(main_frame, text="0", font=("Arial", 20), background='white', foreground='black',  width=10, height=2, anchor='center')
         self.head_movement_count_label.grid(row=2, column=2)
 
         # 비디오 소스 열기
@@ -342,10 +342,29 @@ class App:
         head_movement_count = 0
         self.update_labels()
 
-    def update_labels(self):
+    # def update_labels(self):
+    #     self.total_swings_count.config(text=f"{total_swings}")
+    #     self.head_fixed_count_label.config(text=f"{head_fixed_count}")
+    #     self.head_movement_count_label.config(text=f"{head_movement_count}")
+    
+    # 추가된 부분
+    def reset_label_colors(self):
+        """라벨의 색상을 원래 상태로 복원하고 숫자를 표시합니다."""
+        self.head_fixed_count_label.config(background='white', foreground='black', text=f"{head_fixed_count}")
+        self.head_movement_count_label.config(background='white', foreground='black', text=f"{head_movement_count}")
+
+    def update_labels_with_color(self, fixed, movement):
+        """라벨의 숫자와 색상을 업데이트합니다."""
         self.total_swings_count.config(text=f"{total_swings}")
-        self.head_fixed_count_label.config(text=f"{head_fixed_count}")
-        self.head_movement_count_label.config(text=f"{head_movement_count}")
+
+        # 색상 및 텍스트 변경
+        if fixed:
+            self.head_fixed_count_label.config(background='green', foreground='white', text="O")
+        if movement:
+            self.head_movement_count_label.config(background='red', foreground='white', text="X")
+
+        # 2초 후 색상 복원 및 숫자 표시
+        self.window.after(2000, self.reset_label_colors)
 
     def update(self):
         global swing_ended, last_swing_end_time, address_pose_detection_delay, initial_left_shoulder_x, head_movement_detected, total_swings, head_fixed_count, head_movement_count
@@ -383,8 +402,9 @@ class App:
                 analyze_head_movement_during_swing(keypoints)
                 check_swing_and_head_movement(current_left_shoulder_x)
 
-                # 카운터 업데이트
-                self.update_labels()
+                # 카운터 및 색상 업데이트
+                self.update_labels_with_color(not head_movement_detected, head_movement_detected)
+
 
             # OpenCV 이미지 -> PIL 포맷으로 변환 -> Tkinter에 표시
             self.photo = ImageTk.PhotoImage(image=Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)))
