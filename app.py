@@ -288,21 +288,24 @@ class App:
         self.title = ttk.Label(main_frame, text="Handy Caddy", font=("Helvetica", 16))
         self.title.grid(row=0, column=0, columnspan=3)
 
-        # 정보 라벨과 숫자를 각각 별도로 라벨로 표시
-        self.total_swings_label = ttk.Label(main_frame, text="총 스윙 수", font=("Arial", 16), background='white', foreground='black')
-        self.total_swings_label.grid(row=1, column=0, pady=(5, 0))
-        self.total_swings_count = tk.Label(main_frame, text="0", font=("Arial", 20), background='white', foreground='black', width=10, height=2, anchor='center')
-        self.total_swings_count.grid(row=2, column=0)
+        # 숫자 라벨의 폭 기준 설정
+        num_width = 8
 
-        self.head_fixed_label = ttk.Label(main_frame, text="머리 고정 성공", font=("Arial", 16), background='white', foreground='black')
-        self.head_fixed_label.grid(row=1, column=1, pady=(5, 0))
-        self.head_fixed_count_label = tk.Label(main_frame, text="0", font=("Arial", 20), background='white', foreground='black', width=10, height=2, anchor='center')
-        self.head_fixed_count_label.grid(row=2, column=1)
+        self.total_swings_label = tk.Label(main_frame, text="Total", font=("Arial", 20), background='white', foreground='black', width=num_width, anchor='center')
+        self.total_swings_label.grid(row=1, column=0, pady=(5, 0), sticky='n')
+        self.total_swings_count = tk.Label(main_frame, text="0", font=("Arial", 20), background='white', foreground='black', width=num_width, height=2, anchor='center')
+        self.total_swings_count.grid(row=2, column=0, sticky='n')
 
-        self.head_movement_label = ttk.Label(main_frame, text="머리 고정 실패", font=("Arial", 16), background='white', foreground='black')
-        self.head_movement_label.grid(row=1, column=2, pady=(5, 0))
-        self.head_movement_count_label = tk.Label(main_frame, text="0", font=("Arial", 20), background='white', foreground='black',  width=10, height=2, anchor='center')
-        self.head_movement_count_label.grid(row=2, column=2)
+        self.head_fixed_label = tk.Label(main_frame, text="Success", font=("Arial", 20), background='white', foreground='black', width=num_width, anchor='center')
+        self.head_fixed_label.grid(row=1, column=1, pady=(5, 0), sticky='n')
+        self.head_fixed_count_label = tk.Label(main_frame, text="0", font=("Arial", 20), background='white', foreground='black', width=num_width, height=2, anchor='center')
+        self.head_fixed_count_label.grid(row=2, column=1, sticky='n')
+
+        self.head_movement_label = tk.Label(main_frame, text="Fail", font=("Arial", 20), background='white', foreground='black', width=num_width, anchor='center')
+        self.head_movement_label.grid(row=1, column=2, pady=(5, 0), sticky='n')
+        self.head_movement_count_label = tk.Label(main_frame, text="0", font=("Arial", 20), background='white', foreground='black', width=num_width, height=2, anchor='center')
+        self.head_movement_count_label.grid(row=2, column=2, sticky='n')
+
 
         # 비디오 소스 열기
         self.vid = cv2.VideoCapture(video_source)
@@ -311,7 +314,7 @@ class App:
 
         # 위의 비디오 소스 크기에 맞는 캔버스 생성
         self.canvas = tk.Canvas(main_frame, width=self.vid.get(cv2.CAP_PROP_FRAME_WIDTH), height=self.vid.get(cv2.CAP_PROP_FRAME_HEIGHT))
-        self.canvas.grid(row=3, column=0, columnspan=3)
+        self.canvas.grid(row=3, column=0, columnspan=3, pady=(10,0))
 
         # 버튼을 위한 프레임 생성
         button_frame = ttk.Frame(main_frame, style='My.TFrame')
@@ -340,7 +343,7 @@ class App:
         total_swings = 0
         head_fixed_count = 0
         head_movement_count = 0
-        self.update_labels()
+        self.update_labels_with_color(fixed=False, movement=False)
 
     # def update_labels(self):
     #     self.total_swings_count.config(text=f"{total_swings}")
@@ -356,6 +359,8 @@ class App:
     def update_labels_with_color(self, fixed, movement):
         """라벨의 숫자와 색상을 업데이트합니다."""
         self.total_swings_count.config(text=f"{total_swings}")
+        self.head_fixed_count_label.config(text=f"{head_fixed_count}")
+        self.head_movement_count_label.config(text=f"{head_movement_count}")
 
         # 색상 및 텍스트 변경
         if fixed:
