@@ -1,3 +1,5 @@
+import os
+import sys
 import tkinter as tk
 from tkinter import ttk
 import cv2
@@ -5,6 +7,18 @@ import numpy as np
 import tensorflow as tf
 from PIL import Image, ImageTk
 import time
+import pygame
+
+# 리소스 파일의 경로를 찾는 함수
+def resource_path(relative_path):
+    """ Get absolute path to resource, works for dev and for PyInstaller """
+    try:
+        # PyInstaller로 패키징 된 경우, _MEIPASS는 임시 디렉토리를 가리킵니다.
+        base_path = sys._MEIPASS
+    except Exception:
+        base_path = os.path.abspath(".")
+
+    return os.path.join(base_path, relative_path)
 
 # 초기 상태 저장을 위한 전역 변수 선언
 initial_horizontal_change = None
@@ -24,7 +38,8 @@ total_swings = 0
 head_fixed_count = 0
 head_movement_count = 0
 
-interpreter = tf.lite.Interpreter(model_path='movenet_lighting_tflite_float16.tflite')
+model_path = resource_path('movenet_lighting_tflite_float16.tflite')
+interpreter = tf.lite.Interpreter(model_path=model_path)
 interpreter.allocate_tensors()
 
 def draw_keypoints(frame, keypoints, confidence_threshold):
@@ -51,7 +66,6 @@ def draw_connections(frame, keypoints, edges, confidence_threshold):
             except ValueError:
                 # y1, x1, y2, x2가 유효한 숫자가 아닌 경우 무시하고 다음으로 진행
                 continue
-
 
 # 어깨 중간과 엉덩이 중간에 세로선 그리기 추가
 def draw_midline(frame, keypoints, confidence_threshold):
@@ -105,7 +119,6 @@ def is_address_pose(keypoints_with_scores, confidence_threshold=0.4):
     # 높이 차이와 각도 차이를 기반으로 어드레스 자세와 몸통의 직선성 판별
     vertical_diff_threshold = 5  # 높이 차이 임계값
     if vertical_diff < vertical_diff_threshold and (angle_diff < 165 and angle_diff > 145):
-        # print(f"angle_diff : {angle_diff}")
         return True  # 어드레스 자세이며 몸통이 직선임
     else:
         return False
@@ -275,6 +288,15 @@ class App:
         self.window.title(window_title)
         self.video_source = video_source
 
+        # Pygame 초기화 및 사운드 파일 로드
+        pygame.init()
+        self.success_sound = pygame.mixer.Sound(resource_path('Golfswing_success_sound.mp3'))
+        self.fail_sound = pygame.mixer.Sound(resource_path('Golfswing_Fail_sound.mp3'))
+
+        # 아이콘 이미지 로드
+        icon_image = tk.PhotoImage(file=resource_path('handy_caddy_icon.png'))
+        self.window.iconphoto(False, icon_image)
+
         # 메인 프레임 생성
         main_frame = ttk.Frame(window)
         main_frame.grid(row=0, column=0, padx=10, pady=10)
@@ -305,7 +327,6 @@ class App:
         self.head_movement_label.grid(row=1, column=2, pady=(5, 0), sticky='n')
         self.head_movement_count_label = tk.Label(main_frame, text="0", font=("Arial", 20), background='white', foreground='black', width=num_width, height=2, anchor='center')
         self.head_movement_count_label.grid(row=2, column=2, sticky='n')
-
 
         # 비디오 소스 열기
         self.vid = cv2.VideoCapture(video_source)
@@ -345,12 +366,6 @@ class App:
         head_movement_count = 0
         self.update_labels_with_color(fixed=False, movement=False)
 
-    # def update_labels(self):
-    #     self.total_swings_count.config(text=f"{total_swings}")
-    #     self.head_fixed_count_label.config(text=f"{head_fixed_count}")
-    #     self.head_movement_count_label.config(text=f"{head_movement_count}")
-    
-    # 추가된 부분
     def reset_label_colors(self):
         """라벨의 색상을 원래 상태로 복원하고 숫자를 표시합니다."""
         self.head_fixed_count_label.config(background='white', foreground='black', text=f"{head_fixed_count}")
@@ -362,11 +377,13 @@ class App:
         self.head_fixed_count_label.config(text=f"{head_fixed_count}")
         self.head_movement_count_label.config(text=f"{head_movement_count}")
 
-        # 색상 및 텍스트 변경
+        # 색상 및 텍스트 변경 + 소리 재생
         if fixed:
             self.head_fixed_count_label.config(background='green', foreground='white', text="O")
+            pygame.mixer.Sound.play(self.success_sound)  # 성공 사운드 재생
         if movement:
             self.head_movement_count_label.config(background='red', foreground='white', text="X")
+            pygame.mixer.Sound.play(self.fail_sound)  # 실패 사운드 재생
 
         # 2초 후 색상 복원 및 숫자 표시
         self.window.after(2000, self.reset_label_colors)
@@ -409,7 +426,6 @@ class App:
 
                 # 카운터 및 색상 업데이트
                 self.update_labels_with_color(not head_movement_detected, head_movement_detected)
-
 
             # OpenCV 이미지 -> PIL 포맷으로 변환 -> Tkinter에 표시
             self.photo = ImageTk.PhotoImage(image=Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)))
